@@ -18,8 +18,8 @@ class SpectralMoleculeEncoder(Module):
         self.conv_std = ChebConv(in_channels=512, out_channels=256, K=1)
 
     def forward(self, v, edge_index):
-        x = F.relu(self.gcn1(v, edge_index))
-        x = F.relu(self.gcn2(x, edge_index))
-        x = F.relu(self.gcn3(x, edge_index))
+        x = self.gcn1(v, edge_index).relu()
+        x = self.gcn2(x, edge_index).relu()
+        x = self.gcn3(x, edge_index).relu()
 
         return self.conv_mu(x, edge_index), self.conv_std(x, edge_index)

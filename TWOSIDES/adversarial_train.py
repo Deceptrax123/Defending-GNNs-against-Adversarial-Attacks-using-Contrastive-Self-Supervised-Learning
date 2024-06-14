@@ -15,91 +15,102 @@ from dotenv import load_dotenv
 
 
 def model_pertubation():  # return the pertubed model
-    original_states = copy.deepcopy(model.state_dict())
-    states = copy.deepcopy(original_states)
-    for state in states.keys():
-        std_layer = torch.std(states[state])
-        # Model pertubation
-        states[state] += torch.normal(mean=0,
-                                      std=std_layer, size=states[state].size())
-
-    adversary.load_state_dict(states)
-    model.load_state_dict(original_states)  # Account for copy
+    with torch.no_grad():
+        original_states = copy.deepcopy(model.state_dict())
+        states = copy.deepcopy(original_states)
+        pertubed_dict = dict()
+        for state in states.keys():
+            std_layer = torch.std(states[state])
+            # Model pertubation
+            temp = states[state]
+            Q = temp+torch.normal(mean=0, std=std_layer,
+                                  size=states[state].size())
+            pertubed_dict[state] = Q
+        adversary.load_state_dict(pertubed_dict)
+        model.load_state_dict(original_states)  # Account for copy
 
 
 def train_epoch():
     epoch_loss = 0
     epoch_adv_loss = 0
+    epoch_model_loss = 0
 
     for step, graphs in enumerate(train_loader):
         # Distribution to be learnt
         z = model.encode(graphs.x_s, edge_index=graphs.edge_index_s)
 
-        # Generate Adversary
-        model_pertubation()
+        model.zero_grad()
+        adversary.zero_grad()
 
         # Pertubed distibution
         z_pertubed = adversary.encode(
             graphs.x_s, edge_index=graphs.edge_index_s)
 
-        model.zero_grad()
-
         # Adversarial Training
         adversarial_loss = distance_loss(z, z_pertubed)
-        loss = torch.add(model.kl_loss()/graphs.x_s.size(0), -
-                         torch.mul(LAMBDA, adversarial_loss))
+        model_loss = model.kl_loss()/graphs.x_s.size(0)
+
+        loss = model_loss-adversarial_loss
+
         loss.backward()
         optimizer.step()
+        adversary_optimizer.step()
 
         epoch_loss += loss.item()
+        epoch_model_loss += model_loss.item()
         epoch_adv_loss += adversarial_loss.item()
 
         del graphs
         del z
-        del pertubed_model
 
-    return epoch_loss/(step+1), epoch_adv_loss(step+1)
+    return epoch_loss/(step+1), epoch_adv_loss/(step+1), epoch_model_loss/(step+1)
 
 
 def test_epoch():
-    test_epoch = 0
+    test_loss = 0
+    test_adv = 0
 
     for step, graphs in enumerate(test_loader):
         z = model.encode(graphs.x_s, edge_index=graphs.edge_index_s)
         loss = model.recon_loss(z, graphs.edge_index_s)
-        test_epoch += loss.item()
+        test_loss += loss.item()
+
+        adv_loss = adversary.recon_loss(z, graphs.edge_index_s)
+        test_adv += adv_loss.item()
 
         del z
         del graphs
-    return test_epoch/(step+1)
+    return test_loss/(step+1), test_adv/(step+1)
 
 
 def training_loop():
     for epoch in range(EPOCHS):
         model.train(True)
 
-        train_loss, adv_loss = train_epoch()
+        train_loss, adv_loss, model_loss = train_epoch()
         model.eval()
 
         with torch.no_grad():
-            test_loss = test_epoch()
+            test_loss, test_adv_loss = test_epoch()
 
             print(f"Epoch: {epoch}")
             print(f"Train Loss: {train_loss}")
+            print(f"Model Loss: {model_loss}")
             print(f"Adversarial Loss: {adv_loss}")
-            print(f"Test Loss: {test_loss}")
+            print(f"Test Reconstruction Loss: {test_loss}")
+            print(f"Test Advesarial Loss: {test_adv_loss}")
 
             wandb.log({
                 "Train Loss": train_loss,
                 "Adversarial Loss": adv_loss,
                 "Test Reconstruction Loss": test_loss,
+                "Test Advesarial Loss": test_adv_loss
             })
-
-        scheduler.step()
 
 
 if __name__ == '__main__':
     tmp.set_sharing_strategy('file_system')
+    torch.autograd.set_detect_anomaly(True)
     load_dotenv('.env')
 
     # Set up training fold split and load datasets here
@@ -156,14 +167,16 @@ if __name__ == '__main__':
 
     # Hyperparameters
     EPOCHS = 1000
-    LR = 0.005
-    BETAS = (0.9, 0.999)
+    LR = 0.0002
+    BETAS = (0.5, 0.999)
     LAMBDA = 0.5
     EPSILON = 1
 
-    distance_loss = nn.SmoothL1Loss()
+    distance_loss = nn.MSELoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr=LR, betas=BETAS)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=10, verbose=True)
+    adversary_optimizer = torch.optim.Adam(
+        params=adversary.parameters(), lr=LR, betas=BETAS)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    #     optimizer, T_0=10, verbose=True)
 
     training_loop()
