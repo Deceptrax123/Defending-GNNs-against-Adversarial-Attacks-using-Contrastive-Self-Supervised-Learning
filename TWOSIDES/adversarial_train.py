@@ -104,7 +104,8 @@ def training_loop():
                 "Train Loss": train_loss,
                 "Adversarial Loss": adv_loss,
                 "Test Reconstruction Loss": test_loss,
-                "Test Advesarial Loss": test_adv_loss
+                "Test Advesarial Loss": test_adv_loss,
+                "Model Loss": model_loss,
             })
 
 
