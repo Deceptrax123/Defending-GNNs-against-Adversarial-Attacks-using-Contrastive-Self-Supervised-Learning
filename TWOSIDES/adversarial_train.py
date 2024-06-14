@@ -63,7 +63,7 @@ def train_epoch():
         del graphs
         del z
 
-    return epoch_loss/(step+1), epoch_adv_loss/(step+1), epoch_model_loss/(step+1)
+    return epoch_loss/(train_steps), epoch_adv_loss/(train_steps), epoch_model_loss/(train_steps)
 
 
 def test_epoch():
@@ -80,7 +80,7 @@ def test_epoch():
 
         del z
         del graphs
-    return test_loss/(step+1), test_adv/(step+1)
+    return test_loss/(test_steps), test_adv/(test_steps)
 
 
 def training_loop():
@@ -165,6 +165,8 @@ if __name__ == '__main__':
     model = VGAE(encoder=encoder)
     adversary = VGAE(encoder=adversary_encoder)
 
+    model_pertubation()
+
     # Hyperparameters
     EPOCHS = 1000
     LR = 0.0002
@@ -178,5 +180,7 @@ if __name__ == '__main__':
         params=adversary.parameters(), lr=LR, betas=BETAS)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
     #     optimizer, T_0=10, verbose=True)
+    train_steps = (len(train_set)+params['batch_size']-1)//params['batch_size']
+    test_steps = (len(test_set)+params['batch_size']-1)//params['batch_size']
 
     training_loop()
