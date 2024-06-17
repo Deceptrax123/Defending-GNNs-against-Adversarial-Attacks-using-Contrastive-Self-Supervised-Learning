@@ -9,14 +9,15 @@ class InfoNCELoss(Module):
         super(InfoNCELoss, self).__init__()
         self.reduction = reduction
 
-    def forward(self, z, z1, z2, edge_index):
+    def forward(self, z, z1, z2, edge_index, max_nodes):
         # Adjacency Matrix for ys
         adj_y = torch.sigmoid(torch.matmul(z, z.t()))
         adj_y1 = torch.sigmoid(torch.matmul(z1, z1.t()))
         adj_y2 = torch.sigmoid(torch.matmul(z2, z2.t()))
 
         # Adjacency Matrix for x
-        adj_x = to_dense_adj(edge_index=edge_index)[0]
+        adj_x = to_dense_adj(edge_index=edge_index, max_num_nodes=max_nodes)
+        adj_x = adj_x[0, :, :]
 
         # compute similarity scores g(x,y)
         pos_similarity = torch.cosine_similarity(adj_x, adj_y)

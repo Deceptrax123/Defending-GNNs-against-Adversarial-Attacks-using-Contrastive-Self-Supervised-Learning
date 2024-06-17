@@ -41,13 +41,14 @@ def train_epoch():
         # train the model
         model.zero_grad()
 
-        loss = information_loss(z, z1, z2, graphs.edge_index_s)
+        loss = information_loss(
+            z, z1, z2, graphs.edge_index_s, graphs.x_s.size(0))
         loss.backward()
         optimizer.step()
 
         epoch_info_loss += loss.item()
 
-        del z, zcap2, zcap2, epsilon1, epsilon2, z1, z2
+        del z, zcap1, zcap2, epsilon1, epsilon2, z1, z2
 
     return epoch_info_loss/(step+1)
 
