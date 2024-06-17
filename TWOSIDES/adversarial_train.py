@@ -1,6 +1,6 @@
 from torch_geometric.loader import DataLoader
 from torch_geometric.graphgym import init_weights
-from torch_geometric.nn import VGAE
+from torch_geometric.nn import GAE
 from Model.encoder import SpectralMoleculeEncoder
 from TWOSIDES.Dataset.Molecule_dataset import MolecularGraphDataset
 from torch.utils.data import ConcatDataset
@@ -14,73 +14,41 @@ import wandb
 from dotenv import load_dotenv
 
 
-def model_pertubation():  # return the pertubed model
-    with torch.no_grad():
-        original_states = copy.deepcopy(model.state_dict())
-        states = copy.deepcopy(original_states)
-        pertubed_dict = dict()
-        for state in states.keys():
-            std_layer = torch.std(states[state])
-            # Model pertubation
-            temp = states[state]
-            Q = temp+torch.normal(mean=0, std=std_layer,
-                                  size=states[state].size())
-            pertubed_dict[state] = Q
-        adversary.load_state_dict(pertubed_dict)
-        model.load_state_dict(original_states)  # Account for copy
+def unit_vector(z):
+    u1 = torch.randn(size=z.size())
+    u2 = torch.randn(size=z.size())
+    r1 = torch.sum(u1**2)**0.5
+    r2 = torch.sum(u2**2)**0.5
+
+    return u1/r1, u2/r2
 
 
 def train_epoch():
     epoch_loss = 0
-    epoch_adv_loss = 0
-    epoch_model_loss = 0
 
     for step, graphs in enumerate(train_loader):
-        # Distribution to be learnt
         z = model.encode(graphs.x_s, edge_index=graphs.edge_index_s)
 
-        model.zero_grad()
-        adversary.zero_grad()
+        # Perform embedding pertubation
+        zcap1, zcap2 = unit_vector(z)
+        epsilon1, epsilon2 = torch.normal(
+            0, torch.std(z)), torch.normal(0, torch.std(z))
 
-        # Pertubed distibution
-        z_pertubed = adversary.encode(
-            graphs.x_s, edge_index=graphs.edge_index_s)
-
-        # Adversarial Training
-        adversarial_loss = distance_loss(z, z_pertubed)
-        model_loss = model.kl_loss()/graphs.x_s.size(0)
-
-        loss = model_loss-adversarial_loss
-
-        loss.backward()
-        optimizer.step()
-        adversary_optimizer.step()
-
-        epoch_loss += loss.item()
-        epoch_model_loss += model_loss.item()
-        epoch_adv_loss += adversarial_loss.item()
-
-        del graphs
-        del z
-
-    return epoch_loss/(train_steps), epoch_adv_loss/(train_steps), epoch_model_loss/(train_steps)
+        z1 = torch.add(z, torch.mul(epsilon1, zcap1))
+        z2 = torch.add(z, torch.mul(epsilon2, zcap2))
 
 
 def test_epoch():
-    test_loss = 0
-    test_adv = 0
-
+    epoch_loss = 0
     for step, graphs in enumerate(test_loader):
         z = model.encode(graphs.x_s, edge_index=graphs.edge_index_s)
-        loss = model.recon_loss(z, graphs.edge_index_s)
-        test_loss += loss.item()
 
-        adv_loss = adversary.recon_loss(z, graphs.edge_index_s)
-        test_adv += adv_loss.item()
+        zcap1, zcap2 = unit_vector(z)
+        epsilon1, epsilon2 = torch.normal(
+            0, torch.std(z)), torch.normal(0, torch.std(z))
 
-        del z
-        del graphs
-    return test_loss/(test_steps), test_adv/(test_steps)
+        z1 = torch.add(z, torch.mul(epsilon1, zcap1))
+        z2 = torch.add(z, torch.mul(epsilon2, zcap2))
 
 
 def training_loop():
@@ -157,16 +125,9 @@ if __name__ == '__main__':
         }
     )
     encoder = SpectralMoleculeEncoder(in_features=train_set[0].x_s.size(1))
-    adversary_encoder = SpectralMoleculeEncoder(
-        in_features=train_set[0].x_s.size(1))
     for m in encoder.modules():
         init_weights(m)
-    for m in adversary_encoder.modules():
-        init_weights(m)
-    model = VGAE(encoder=encoder)
-    adversary = VGAE(encoder=adversary_encoder)
-
-    model_pertubation()
+    model = GAE(encoder=encoder)
 
     # Hyperparameters
     EPOCHS = 1000
@@ -177,10 +138,8 @@ if __name__ == '__main__':
 
     distance_loss = nn.MSELoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr=LR, betas=BETAS)
-    adversary_optimizer = torch.optim.Adam(
-        params=adversary.parameters(), lr=LR, betas=BETAS)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-    #     optimizer, T_0=10, verbose=True)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, T_0=10, verbose=True)
     train_steps = (len(train_set)+params['batch_size']-1)//params['batch_size']
     test_steps = (len(test_set)+params['batch_size']-1)//params['batch_size']
 
