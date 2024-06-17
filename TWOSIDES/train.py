@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 
 
 def unit_vector(z):
-    u1 = torch.randn(size=z.size())
-    u2 = torch.randn(size=z.size())
+    u1 = torch.randn(size=(1, z.size(1)))
+    u2 = torch.randn(size=(1, z.size(1)))
     r1 = torch.sum(u1**2)**0.5
     r2 = torch.sum(u2**2)**0.5
 
