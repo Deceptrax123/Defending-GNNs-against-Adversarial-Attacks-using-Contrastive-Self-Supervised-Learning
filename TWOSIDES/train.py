@@ -1,8 +1,9 @@
 from torch_geometric.loader import DataLoader
 from torch_geometric.graphgym import init_weights
 from torch_geometric.nn import GAE
-from Model.encoder import SpectralMoleculeEncoder
+from TWOSIDES.Model.encoder import SpectralMoleculeEncoder
 from TWOSIDES.Dataset.Molecule_dataset import MolecularGraphDataset
+from TWOSIDES.losses import InfoNCELoss
 from torch.utils.data import ConcatDataset
 import torch.multiprocessing as tmp
 from torch import nn
@@ -24,7 +25,7 @@ def unit_vector(z):
 
 
 def train_epoch():
-    epoch_loss = 0
+    epoch_info_loss = 0
 
     for step, graphs in enumerate(train_loader):
         z = model.encode(graphs.x_s, edge_index=graphs.edge_index_s)
@@ -37,9 +38,23 @@ def train_epoch():
         z1 = torch.add(z, torch.mul(epsilon1, zcap1))
         z2 = torch.add(z, torch.mul(epsilon2, zcap2))
 
+        # train the model
+        model.zero_grad()
+
+        loss = information_loss(z, z1, z2, graphs.edge_index_s)
+        loss.backward()
+        optimizer.step()
+
+        epoch_info_loss += loss.item()
+
+        del z, zcap2, zcap2, epsilon1, epsilon2, z1, z2
+
+    return epoch_info_loss/(step+1)
+
 
 def test_epoch():
-    epoch_loss = 0
+    epoch_info_loss = 0
+    test_recon_loss = 0
     for step, graphs in enumerate(test_loader):
         z = model.encode(graphs.x_s, edge_index=graphs.edge_index_s)
 
@@ -50,31 +65,38 @@ def test_epoch():
         z1 = torch.add(z, torch.mul(epsilon1, zcap1))
         z2 = torch.add(z, torch.mul(epsilon2, zcap2))
 
+        loss = information_loss(z, z1, z2, graphs.edge_index_s)
+        recon = model.recon_loss(z)
+
+        epoch_info_loss += loss.item()
+        test_recon_loss += recon.item()
+
+        del z, z1, z2, zcap1, zcap2, epsilon1, epsilon2
+
+    return epoch_info_loss/(step+1), test_recon_loss/(step+1)
+
 
 def training_loop():
     for epoch in range(EPOCHS):
         model.train(True)
 
-        train_loss, adv_loss, model_loss = train_epoch()
+        train_info_loss = train_epoch()
         model.eval()
 
         with torch.no_grad():
-            test_loss, test_adv_loss = test_epoch()
+            test_info_loss, test_recon_loss = test_epoch()
 
             print(f"Epoch: {epoch}")
-            print(f"Train Loss: {train_loss}")
-            print(f"Model Loss: {model_loss}")
-            print(f"Adversarial Loss: {adv_loss}")
-            print(f"Test Reconstruction Loss: {test_loss}")
-            print(f"Test Advesarial Loss: {test_adv_loss}")
+            print(f"Train Information Loss: {train_info_loss}")
+            print(f"Test Information Loss: {test_info_loss}")
+            print(f"Test Reconstruction Loss: {test_recon_loss}")
 
             wandb.log({
-                "Train Loss": train_loss,
-                "Adversarial Loss": adv_loss,
-                "Test Reconstruction Loss": test_loss,
-                "Test Advesarial Loss": test_adv_loss,
-                "Model Loss": model_loss,
+                "Train Information Loss": train_info_loss,
+                "Test Information Loss": test_info_loss,
+                "Test Reconstruction Loss": test_recon_loss,
             })
+        scheduler.step()
 
 
 if __name__ == '__main__':
@@ -137,10 +159,9 @@ if __name__ == '__main__':
     EPSILON = 1
 
     distance_loss = nn.MSELoss()
+    information_loss = InfoNCELoss(reduction=True)
     optimizer = torch.optim.Adam(params=model.parameters(), lr=LR, betas=BETAS)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer, T_0=10, verbose=True)
-    train_steps = (len(train_set)+params['batch_size']-1)//params['batch_size']
-    test_steps = (len(test_set)+params['batch_size']-1)//params['batch_size']
 
     training_loop()
