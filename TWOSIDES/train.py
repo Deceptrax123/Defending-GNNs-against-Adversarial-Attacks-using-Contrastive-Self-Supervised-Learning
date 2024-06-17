@@ -66,7 +66,8 @@ def test_epoch():
         z1 = torch.add(z, torch.mul(epsilon1, zcap1))
         z2 = torch.add(z, torch.mul(epsilon2, zcap2))
 
-        loss = information_loss(z, z1, z2, graphs.edge_index_s)
+        loss = information_loss(
+            z, z1, z2, graphs.edge_index_s, graphs.x_size.size(0))
         recon = model.recon_loss(z)
 
         epoch_info_loss += loss.item()
