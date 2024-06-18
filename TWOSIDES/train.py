@@ -145,7 +145,7 @@ if __name__ == '__main__':
     EPOCHS = 1000
     LR = 0.0002
     BETAS = (0.5, 0.999)
-    LAMBDA = 0.5
+    LAMBDA = 0.1
     EPSILON = 1
 
     distance_loss = nn.MSELoss()
