@@ -28,6 +28,6 @@ class InfoNCELoss(Module):
         E_x_y = torch.sum(torch.mul(adj_y, adj_x), dim=1)
         EPSILON = 1e-8
 
-        info_loss = -E_x_y*torch.log1p(torch.exp(pos_similarity)/(torch.exp(pos_similarity)+torch.exp(neg_similarity1)
-                                                                  + torch.exp(neg_similarity2)+EPSILON))
+        info_loss = -E_x_y*torch.log(torch.exp(pos_similarity)/(torch.exp(pos_similarity)+torch.exp(neg_similarity1)
+                                                                + torch.exp(neg_similarity2)+EPSILON))
         return torch.mean(info_loss) if self.reduction else info_loss

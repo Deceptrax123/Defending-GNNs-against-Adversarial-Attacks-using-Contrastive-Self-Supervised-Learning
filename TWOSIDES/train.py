@@ -41,8 +41,8 @@ def train_epoch():
         # train the model
         model.zero_grad()
 
-        loss = information_loss(
-            z, z1, z2, graphs.edge_index_s, graphs.x_s.size(0))
+        loss = model.recon_loss(z, pos_edge_index=graphs.edge_index_s)+(LAMBDA*information_loss(
+            z, z1, z2, graphs.edge_index_s, graphs.x_s.size(0)))
         loss.backward()
         optimizer.step()
 
@@ -59,23 +59,13 @@ def test_epoch():
     for step, graphs in enumerate(test_loader):
         z = model.encode(graphs.x_s, edge_index=graphs.edge_index_s)
 
-        zcap1, zcap2 = unit_vector(z)
-        epsilon1, epsilon2 = torch.normal(
-            0, torch.std(z)), torch.normal(0, torch.std(z))
+        recon = model.recon_loss(z, pos_edge_index=graphs.edge_index_s)
 
-        z1 = torch.add(z, torch.mul(epsilon1, zcap1))
-        z2 = torch.add(z, torch.mul(epsilon2, zcap2))
-
-        loss = information_loss(
-            z, z1, z2, graphs.edge_index_s, graphs.x_size.size(0))
-        recon = model.recon_loss(z)
-
-        epoch_info_loss += loss.item()
         test_recon_loss += recon.item()
 
-        del z, z1, z2, zcap1, zcap2, epsilon1, epsilon2
+        del z
 
-    return epoch_info_loss/(step+1), test_recon_loss/(step+1)
+    return test_recon_loss/(step+1)
 
 
 def training_loop():
@@ -86,16 +76,14 @@ def training_loop():
         model.eval()
 
         with torch.no_grad():
-            test_info_loss, test_recon_loss = test_epoch()
+            test_recon_loss = test_epoch()
 
             print(f"Epoch: {epoch}")
             print(f"Train Information Loss: {train_info_loss}")
-            print(f"Test Information Loss: {test_info_loss}")
             print(f"Test Reconstruction Loss: {test_recon_loss}")
 
             wandb.log({
                 "Train Information Loss": train_info_loss,
-                "Test Information Loss": test_info_loss,
                 "Test Reconstruction Loss": test_recon_loss,
             })
         scheduler.step()
