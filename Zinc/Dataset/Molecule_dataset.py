@@ -10,7 +10,7 @@ import os.path as osp
 
 
 class MolecularGraphDataset(Dataset):
-    def __init__(self, fold_key, root, start, step=31182):
+    def __init__(self, fold_key, root, start, step=30000):
         self.fold_key = fold_key
         self.root = root
         self.step = step
