@@ -13,7 +13,7 @@ This repository was used in the  <a href="">Molecular Property Prediction Projec
   ```sh
   export PYTHONPATH="/path/to/project/root"
   ```
-- Windows users are suggested to use ```bash```
+- Windows users are suggested to use ```bash``` terminal and run the above command.
 
 
 ## Datasets Used
