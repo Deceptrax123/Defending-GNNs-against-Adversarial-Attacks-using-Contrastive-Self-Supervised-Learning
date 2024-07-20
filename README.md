@@ -1,4 +1,4 @@
-# Making Graph Neural Networks robust to Adversarial Attacks 
+# Defending Graph Neural Networks against Adversarial Attacks 
 This repository was used in the  <a href="">Molecular Property Prediction Project</a>. The pre-trained backbone can be extended for several other uses cases as well. 
 
 ## Running the Scripts
