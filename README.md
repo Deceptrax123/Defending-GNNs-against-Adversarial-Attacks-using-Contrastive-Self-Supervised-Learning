@@ -1,4 +1,4 @@
-# Defending Graph Neural Networks against Adversarial Attacks 
+# Developing Molecular Embeddings through Contrastive Learning 
 This repository was used in the  <a href="">Molecular Property Prediction Project</a>. The pre-trained backbone can be extended for several other uses cases as well. 
 
 ## Running the Scripts
