@@ -1,5 +1,5 @@
 # Developing Molecular Embeddings through Contrastive Learning 
-This repository was used in the  <a href="">Molecular Property Prediction Project</a>. The pre-trained backbone can be extended for several other uses cases as well. 
+This repository was used in the  <a href="https://github.com/Deceptrax123/Molecule-Chemical-Property-Prediction-using-Graph-Isomorphism-and-Contrastive-Pretraining">Molecular Property Prediction Project</a>. The pre-trained backbone can be extended for several other uses cases as well. 
 
 ## Running the Scripts
 - Follow the procedure detailed <a href="https://github.com/Deceptrax123/Molecular-Graph-Featuriser" >here</a> to save the tensors of all molecular graphs.
